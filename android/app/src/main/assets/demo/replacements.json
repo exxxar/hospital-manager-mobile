@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "schedule_id": 1,
+    "employee_id": 1,
+    "replacement_employee_id": 3,
+    "date": "2026-11-20",
+    "start_time": "09:00",
+    "end_time": "17:00",
+    "note": "Подмена на время отсутствия"
+  }
+]

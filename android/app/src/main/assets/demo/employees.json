@@ -1,0 +1,59 @@
+[
+  {
+    "id": 1,
+    "first_name": "Иван",
+    "last_name": "Иванов",
+    "email": "ivanov@demo.clinic",
+    "type": "doctor",
+    "phone": "+7 900 111-22-33",
+    "specialist": "Терапевт",
+    "medical_degree": "Врач высшей категории"
+  },
+  {
+    "id": 2,
+    "first_name": "Мария",
+    "last_name": "Петрова",
+    "email": "petrova@demo.clinic",
+    "type": "nurse",
+    "phone": "+7 900 222-33-44",
+    "specialist": "Медицинская сестра"
+  },
+  {
+    "id": 3,
+    "first_name": "Сергей",
+    "last_name": "Сидоров",
+    "email": "sidorov@demo.clinic",
+    "type": "accountant",
+    "phone": "+7 900 333-44-55"
+  },
+  {
+    "id": 4,
+    "first_name": "Елена",
+    "last_name": "Кузнецова",
+    "email": "kuznetsova@demo.clinic",
+    "type": "receptionist",
+    "phone": "+7 900 444-55-66"
+  },
+  {
+    "id": 5,
+    "first_name": "Андрей",
+    "last_name": "Смирнов",
+    "email": "smirnov@demo.clinic",
+    "type": "admin",
+    "phone": "+7 900 555-66-77"
+  },
+  {
+    "id": 6,
+    "first_name": "Ольга",
+    "last_name": "Орлова",
+    "email": "orlova@demo.clinic",
+    "type": "laboratorist"
+  },
+  {
+    "id": 7,
+    "first_name": "Наталья",
+    "last_name": "Федорова",
+    "email": "fedorova@demo.clinic",
+    "type": "pharmacist"
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "user_id": 1,
+    "day_of_week": "Понедельник",
+    "start_time": "09:00",
+    "end_time": "17:00"
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "day_of_week": "Вторник",
+    "start_time": "09:00",
+    "end_time": "17:00"
+  },
+  {
+    "id": 3,
+    "user_id": 2,
+    "day_of_week": "Понедельник",
+    "start_time": "08:00",
+    "end_time": "16:00"
+  },
+  {
+    "id": 4,
+    "user_id": 5,
+    "day_of_week": "Пятница",
+    "start_time": "10:00",
+    "end_time": "18:00"
+  }
+]
