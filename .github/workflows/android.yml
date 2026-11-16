@@ -56,7 +56,22 @@ jobs:
           echo "API_BASE_URL format is valid."
 
       - name: Compile debug Kotlin and package APK
-        run: gradle --no-daemon --stacktrace -p android clean assembleDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain --stacktrace -p android clean assembleDebug 2>&1 | tee android-build.log
+
+      - name: Upload compiler log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-compiler-log
+          path: android-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify APK exists
+        run: test -s android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Run unit tests (if present)
         run: gradle --no-daemon --stacktrace -p android testDebugUnitTest

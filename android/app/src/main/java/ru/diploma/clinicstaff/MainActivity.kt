@@ -206,7 +206,7 @@ private fun ModeSelectionScreen(
         Text("Выберите режим работы приложения", style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(30.dp))
-        Card(Modifier.fillMaxWidth(), onClick = onDemo) {
+        Card(onClick = onDemo, modifier = Modifier.fillMaxWidth()) {
             Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.PhoneAndroid, null, modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(14.dp))
@@ -218,7 +218,7 @@ private fun ModeSelectionScreen(
             }
         }
         Spacer(Modifier.height(12.dp))
-        Card(Modifier.fillMaxWidth(), onClick = onServer, enabled = apiConfigured) {
+        Card(onClick = onServer, modifier = Modifier.fillMaxWidth(), enabled = apiConfigured) {
             Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Cloud, null, modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(14.dp))
