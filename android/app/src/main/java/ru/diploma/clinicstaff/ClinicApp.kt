@@ -15,6 +15,11 @@ class ClinicApp : Application() {
     override fun onCreate() {
         super.onCreate()
         DebugLogStore.init(this)
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching { DebugLogStore.logException("UNCAUGHT:${thread.name}", throwable) }
+            previousHandler?.uncaughtException(thread, throwable)
+        }
         database = ClinicDatabase.get(this)
         settings = SettingsStore(this)
         tokenHolder = TokenHolder()

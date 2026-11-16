@@ -53,7 +53,8 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
             }
         }
         viewModelScope.launch {
-            val savedMode = app.settings.mode.first()
+            try {
+                val savedMode = app.settings.mode.first()
             _state.update { it.copy(mode = savedMode) }
             app.seeder.seedIfNeeded()
             if (savedMode == AppMode.DEMO && _state.value.profile == null) {
@@ -93,7 +94,13 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
                         serviceRequests = serviceRequests
                     )
                 }
-            }.collect()
+                }.collect()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                DebugLogStore.logException("VIEWMODEL_INIT", failure)
+                _state.update { it.copy(error = "Ошибка загрузки данных: ${failure.message ?: failure.javaClass.simpleName}") }
+            }
         }
     }
 

@@ -14,7 +14,9 @@ DataStore Preferences, Coroutines/Flow.
 - Личный кабинет: ФИО, должность, email, телефоны, специализация и квалификация.\n- В DEMO можно переключать тестовые профили сотрудников; в SERVER показывается профиль авторизованного сотрудника.
 - Поиск сотрудников, фильтр по типу, просмотр карточек.
 - Только чтение кадровых данных. В DEMO доступен локальный сброс данных.
-- GitHub Actions workflow для сборки debug APK.
+- GitHub Actions: автоматическая проверка и сборка debug APK при push / pull request / ручном запуске.
+- Переключатель DEMO / SERVER всегда доступен в верхней панели.
+- Перехват необработанных исключений с сохранением аварийного стека в локальный журнал отладки.
 
 ## Открытие
 
@@ -71,6 +73,10 @@ gradle assembleDebug  # Windows, при установленном Gradle 8.9
 APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 В GitHub Actions используется workflow `.github/workflows/android.yml`.
+Репозиторий должен содержать в корне папки `.github/` и `android/`.
+После push откройте вкладку **Actions**, выберите успешный запуск workflow
+**Android CI** и скачайте артефакт `clinic-staff-debug-apk`.
+Сборка выполняется в облаке GitHub Actions; локальный Android SDK не требуется.
 Для release-подписи добавьте keystore и пароли в GitHub Secrets; не храните
 их в репозитории.
 

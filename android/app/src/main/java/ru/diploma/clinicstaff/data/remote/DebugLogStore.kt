@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.io.PrintWriter
+import java.io.StringWriter
 
 data class DebugEntry(val time:String,val level:String,val tag:String,val message:String) {
     fun line() = "$time [$level] $tag: $message"
@@ -38,6 +40,16 @@ object DebugLogStore {
             prefs?.edit()?.putString("entries",next.joinToString("\n"){"${it.time}|${it.level}|${it.tag}|${it.message}"})?.apply()
         }
     }
+
+    fun logException(tag: String, throwable: Throwable) {
+        val writer = StringWriter()
+        throwable.printStackTrace(PrintWriter(writer))
+        val stack = writer.toString().lineSequence().take(24).joinToString(" ⇢ ")
+        log("FATAL", tag, "${throwable.javaClass.name}: ${throwable.message ?: "без сообщения"} | $stack")
+        prefs?.edit()?.putString("last_fatal", stack.take(7000))?.commit()
+    }
+
+    fun lastFatal(): String? = prefs?.getString("last_fatal", null)
 
     fun clear() { _entries.value=emptyList(); prefs?.edit()?.remove("entries")?.apply(); log("INFO","DEBUG","Журнал очищен") }
     fun exportText():String = _entries.value.joinToString("\n"){it.line()}

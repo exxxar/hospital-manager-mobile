@@ -27,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import ru.diploma.clinicstaff.data.AppMode
+import ru.diploma.clinicstaff.data.remote.DebugLogStore
 import ru.diploma.clinicstaff.ui.*
 
 class MainActivity : ComponentActivity() {
@@ -82,7 +83,9 @@ private fun ClinicRoot(vm: ClinicViewModel) {
                     IconButton(onClick = { tab = Tab.PROFILE; selectedEmployee = null }) {
                         Icon(Icons.Default.AccountCircle, contentDescription="Личный кабинет")
                     }
-                    IconButton(onClick = { showLogin = true }) { Icon(Icons.Default.Settings, contentDescription="Режим") }
+                    TextButton(onClick = { showLogin = true }) {
+                        Text(if (state.mode == AppMode.DEMO) "ДЕМО" else "СЕРВЕР", fontWeight = FontWeight.Bold)
+                    }
                 }
             )
         },
@@ -90,7 +93,7 @@ private fun ClinicRoot(vm: ClinicViewModel) {
             NavigationBar {
                 val primaryTabs = listOf(Tab.HOME, Tab.STAFF, Tab.SCHEDULE)
                 primaryTabs.forEach { item ->
-                    NavigationBarItem(selected=tab==item, onClick={tab=item;selectedEmployee=null},
+                    NavigationBarItem(selected=tab==item, onClick={ DebugLogStore.log("INFO", "NAV", "Открытие раздела ${item.name}"); tab=item;selectedEmployee=null },
                         icon={Icon(item.icon,contentDescription=item.title)}, label={Text(item.title, maxLines=1)})
                 }
                 NavigationBarItem(
@@ -147,7 +150,7 @@ private fun ClinicRoot(vm: ClinicViewModel) {
                         headlineContent = { Text(item.title) },
                         leadingContent = { Icon(item.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         trailingContent = { if (tab == item) Icon(Icons.Default.Check, contentDescription = "Выбран") },
-                        modifier = Modifier.fillMaxWidth().clickable { tab = item; selectedEmployee = null; showMore = false },
+                        modifier = Modifier.fillMaxWidth().clickable { DebugLogStore.log("INFO", "NAV", "Открытие раздела ${item.name}"); tab = item; selectedEmployee = null; showMore = false },
                         colors = ListItemDefaults.colors(containerColor = if (tab == item) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -675,8 +678,16 @@ private fun DebugScreen() {
             IconButton(onClick={clipboard.setText(androidx.compose.ui.text.AnnotatedString(ru.diploma.clinicstaff.data.remote.DebugLogStore.exportText()))}) { Icon(Icons.Default.ContentCopy,"Копировать") }
             IconButton(onClick={ru.diploma.clinicstaff.data.remote.DebugLogStore::clear}) { Icon(Icons.Default.DeleteSweep,"Очистить") }
         }
+        DebugLogStore.lastFatal()?.let { fatal ->
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(10.dp)) {
+                    Text("Последнее аварийное завершение", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text(fatal, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                }
+            }
+        }
         Row(horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-            listOf("ALL","INFO","WARN","ERROR","HTTP").forEach { f ->
+            listOf("ALL","INFO","WARN","ERROR","FATAL","HTTP").forEach { f ->
                 FilterChip(selected=filter==f,onClick={filter=f},label={Text(f)})
             }
         }
@@ -685,7 +696,7 @@ private fun DebugScreen() {
         else LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)) {
             items(visible.reversed()) { entry ->
                 Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=when(entry.level) {
-                    "ERROR"->MaterialTheme.colorScheme.errorContainer
+                    "ERROR","FATAL"->MaterialTheme.colorScheme.errorContainer
                     "WARN"->MaterialTheme.colorScheme.tertiaryContainer
                     else->MaterialTheme.colorScheme.surfaceVariant
                 })) {
