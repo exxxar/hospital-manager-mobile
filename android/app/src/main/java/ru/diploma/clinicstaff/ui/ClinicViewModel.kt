@@ -13,7 +13,7 @@ data class UiState(
     val mode: AppMode = AppMode.DEMO,
     val loggedIn: Boolean = false,
     val profile: Employee? = null,
-    val employees: List<ru.diploma.clinicstaff.data.local.EmployeeEntity> = emptyList(),
+    val employees: List<Employee> = emptyList(),
     val departments: List<ru.diploma.clinicstaff.data.local.DepartmentEntity> = emptyList(),
     val schedules: List<ru.diploma.clinicstaff.data.local.ScheduleEntity> = emptyList(),
     val dayOffs: List<ru.diploma.clinicstaff.data.local.DayOffEntity> = emptyList(),
@@ -76,34 +76,45 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
                     )) }
                 }
             }
+            // Не упаковываем типизированные списки в listOf(): это превращает
+            // их в List<Any> и ранее приводило к ClassCastException на главном экране.
+            data class CoreData(
+                val employees: List<Employee>,
+                val departments: List<ru.diploma.clinicstaff.data.local.DepartmentEntity>,
+                val schedules: List<ru.diploma.clinicstaff.data.local.ScheduleEntity>,
+                val dayOffs: List<ru.diploma.clinicstaff.data.local.DayOffEntity>,
+                val notifications: List<ru.diploma.clinicstaff.data.local.NotificationEntity>
+            )
+            val coreFlow = combine(
+                app.repository.employees(),
+                app.repository.departments(),
+                app.repository.schedules(),
+                app.repository.dayOffs(),
+                app.repository.notifications()
+            ) { employees, departments, schedules, dayOffs, notifications ->
+                CoreData(employees, departments, schedules, dayOffs, notifications)
+            }
             combine(
-                combine(
-                    app.repository.employees(),
-                    app.repository.departments(),
-                    app.repository.schedules(),
-                    app.repository.dayOffs(),
-                    app.repository.notifications()
-                ) { e, d, schedules, days, notifications -> listOf(e, d, schedules, days, notifications) },
+                coreFlow,
                 app.repository.absences(),
                 app.repository.replacements(),
                 app.database.dao().tasks(),
                 app.database.dao().serviceRequests()
             ) { core, absences, replacements, tasks, serviceRequests ->
-                @Suppress("UNCHECKED_CAST")
-                _state.update {
-                    it.copy(
-                        employees = core[0] as List<ru.diploma.clinicstaff.data.local.EmployeeEntity>,
-                        departments = core[1] as List<ru.diploma.clinicstaff.data.local.DepartmentEntity>,
-                        schedules = core[2] as List<ru.diploma.clinicstaff.data.local.ScheduleEntity>,
-                        dayOffs = core[3] as List<ru.diploma.clinicstaff.data.local.DayOffEntity>,
-                        notifications = core[4] as List<ru.diploma.clinicstaff.data.local.NotificationEntity>,
+                _state.update { current ->
+                    current.copy(
+                        employees = core.employees,
+                        departments = core.departments,
+                        schedules = core.schedules,
+                        dayOffs = core.dayOffs,
+                        notifications = core.notifications,
                         absences = absences,
                         replacements = replacements,
                         tasks = tasks,
                         serviceRequests = serviceRequests
                     )
                 }
-                }.collect()
+            }.collect()
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {

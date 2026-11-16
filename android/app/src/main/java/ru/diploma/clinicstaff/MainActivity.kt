@@ -871,7 +871,7 @@ private fun StaffScreen(s:UiState,onSearch:(String)->Unit,onType:(String)->Unit,
 }
 
 @Composable
-private fun EmployeeDetail(e:ru.diploma.clinicstaff.data.local.EmployeeEntity,onBack:()->Unit) {
+private fun EmployeeDetail(e:ru.diploma.clinicstaff.data.model.Employee,onBack:()->Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         TextButton(onClick=onBack){Text("← Назад")}
         Icon(Icons.Default.AccountCircle,null,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(72.dp))
