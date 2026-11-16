@@ -49,13 +49,20 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
             app.settings.token.collect { token ->
                 app.tokenHolder.token = token
                 _state.update { it.copy(loggedIn = !token.isNullOrBlank()) }
-                if (!token.isNullOrBlank()) loadServerProfile()
+                if (!token.isNullOrBlank() && _state.value.mode == AppMode.SERVER && app.apiConfigured) loadServerProfile()
             }
         }
         viewModelScope.launch {
             try {
                 val savedMode = app.settings.mode.first()
-            _state.update { it.copy(mode = savedMode) }
+            _state.update {
+                it.copy(
+                    mode = savedMode,
+                    error = if (savedMode == AppMode.SERVER && !app.apiConfigured)
+                        "Серверный режим выбран, но API_BASE_URL не настроен. Переключитесь в DEMO или добавьте переменную в GitHub Actions и пересоберите APK."
+                    else it.error
+                )
+            }
             app.seeder.seedIfNeeded()
             if (savedMode == AppMode.DEMO && _state.value.profile == null) {
                 val demoUser = app.database.dao().employee(1)
@@ -106,18 +113,46 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
 
     fun chooseMode(mode: AppMode) = viewModelScope.launch {
         app.settings.setMode(mode)
-        if (mode == AppMode.DEMO) _state.update { it.copy(error=null) } else refresh()
+        if (mode == AppMode.DEMO) {
+            _state.update { it.copy(error=null, loading=false) }
+            DebugLogStore.log("INFO", "MODE", "Выбран автономный DEMO-режим")
+        } else if (!app.apiConfigured) {
+            val message = "Серверный режим не настроен. Добавьте переменную API_BASE_URL в GitHub Actions (Settings → Secrets and variables → Actions → Variables), затем пересоберите APK. Пока используйте DEMO."
+            _state.update { it.copy(error=message, loading=false) }
+            DebugLogStore.log("WARN", "CONFIG", "Переход в SERVER заблокирован: API_BASE_URL отсутствует или некорректен")
+        } else {
+            _state.update { it.copy(error=null) }
+            refresh()
+        }
     }
     fun login(email: String, password: String) = viewModelScope.launch {
+        if (!app.apiConfigured) {
+            val message = "Не настроен адрес API-сервера. Добавьте API_BASE_URL в GitHub Actions и пересоберите приложение."
+            _state.update { it.copy(error=message, loading=false) }
+            DebugLogStore.log("ERROR", "CONFIG", message)
+            return@launch
+        }
         _state.update { it.copy(loading=true,error=null) }
         runCatching { app.repository.login(email,password) }
             .onSuccess { user -> _state.update { it.copy(profile=user,loading=false,loggedIn=true) }; DebugLogStore.log("INFO","AUTH","Вход выполнен: ${user.email}") }
             .onFailure { DebugLogStore.log("ERROR","AUTH",it.message ?: "Ошибка входа"); _state.update { s -> s.copy(loading=false,error=it.message ?: "Не удалось войти") } }
     }
     private suspend fun loadServerProfile() {
+        if (!app.apiConfigured || _state.value.mode != AppMode.SERVER) return
         runCatching { app.api.me().data }.onSuccess { user -> _state.update { it.copy(profile=user) } }
+            .onFailure { DebugLogStore.log("ERROR", "AUTH", "Не удалось загрузить профиль: ${it.message ?: it.javaClass.simpleName}") }
     }
     fun refresh() = viewModelScope.launch {
+        if (_state.value.mode == AppMode.SERVER && !app.apiConfigured) {
+            val message = "Сервер не настроен: API_BASE_URL отсутствует. Синхронизация не выполнялась; DEMO-режим остаётся доступен."
+            _state.update { it.copy(loading=false,error=message) }
+            DebugLogStore.log("WARN", "CONFIG", "Синхронизация отменена: API_BASE_URL не настроен")
+            return@launch
+        }
+        if (_state.value.mode == AppMode.DEMO) {
+            DebugLogStore.log("INFO", "SYNC", "Синхронизация пропущена: DEMO работает локально")
+            return@launch
+        }
         _state.update { it.copy(loading=true,error=null) }
         DebugLogStore.log("INFO","SYNC","Начало синхронизации")
         runCatching {
@@ -144,6 +179,12 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
     }
     fun runDiagnostics() = viewModelScope.launch {
         _state.update { it.copy(diagnosticsRunning=true, apiStatus="Проверка…", authStatus="Проверка…", serverDbStatus="Проверка…") }
+        if (_state.value.mode == AppMode.SERVER && !app.apiConfigured) {
+            val message = "API_BASE_URL не задан или имеет неверный формат. Сетевые запросы не выполнялись."
+            _state.update { it.copy(apiStatus="Не настроен", authStatus="Не проверена", serverDbStatus="Не проверена", diagnosticsCheckedAt=java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date()), diagnosticsRunning=false, error=message) }
+            DebugLogStore.log("WARN", "DIAG", message)
+            return@launch
+        }
         val checked = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
         if (_state.value.mode == AppMode.DEMO) {
             _state.update { it.copy(apiStatus="Не используется в DEMO", authStatus="Локальный профиль", serverDbStatus="Не используется в DEMO", diagnosticsCheckedAt=checked, diagnosticsRunning=false) }
@@ -174,9 +215,21 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
 
     fun search(value: String) { _state.update { it.copy(search=value) }; refreshEmployees() }
     fun filterType(value: String) { _state.update { it.copy(type=value) }; refreshEmployees() }
-    private fun refreshEmployees() = viewModelScope.launch { runCatching { app.repository.refreshEmployees(_state.value.search,_state.value.type) } }
+    private fun refreshEmployees() = viewModelScope.launch {
+        if (_state.value.mode == AppMode.SERVER && !app.apiConfigured) {
+            DebugLogStore.log("WARN", "CONFIG", "Поиск на сервере пропущен: API_BASE_URL не настроен")
+            return@launch
+        }
+        runCatching { app.repository.refreshEmployees(_state.value.search,_state.value.type) }
+            .onFailure { DebugLogStore.log("ERROR", "SYNC", "Поиск сотрудников: ${it.message ?: it.javaClass.simpleName}") }
+    }
     fun markRead(id: String) = viewModelScope.launch { runCatching { app.repository.markNotificationRead(id) }.onFailure { error -> _state.update { state -> state.copy(error=error.message) } } }
-    fun logout() = viewModelScope.launch { app.repository.logout(); DebugLogStore.log("INFO","AUTH","Выход из учётной записи"); _state.update { it.copy(profile=null,loggedIn=false) } }
+    fun logout() = viewModelScope.launch {
+        if (app.apiConfigured && _state.value.mode == AppMode.SERVER) runCatching { app.repository.logout() }
+        else app.settings.setToken(null)
+        DebugLogStore.log("INFO","AUTH","Выход из учётной записи")
+        _state.update { it.copy(profile=null,loggedIn=false) }
+    }
     fun selectDemoEmployee(id: Long) = viewModelScope.launch {
         val person = app.database.dao().employee(id) ?: return@launch
         _state.update { it.copy(profile = Employee(

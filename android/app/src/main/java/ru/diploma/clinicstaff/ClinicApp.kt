@@ -11,6 +11,7 @@ class ClinicApp : Application() {
     lateinit var tokenHolder: TokenHolder
     lateinit var api: ApiService
     lateinit var repository: ClinicRepository
+    val apiConfigured: Boolean get() = Network.isBaseUrlConfigured(BuildConfig.API_BASE_URL)
     lateinit var seeder: DemoSeeder
     override fun onCreate() {
         super.onCreate()
@@ -24,6 +25,11 @@ class ClinicApp : Application() {
         settings = SettingsStore(this)
         tokenHolder = TokenHolder()
         api = Network.api(this, BuildConfig.API_BASE_URL, tokenHolder)
+        DebugLogStore.log(
+            if (apiConfigured) "INFO" else "WARN",
+            "CONFIG",
+            if (apiConfigured) "API_BASE_URL настроен" else "API_BASE_URL не задан: приложение работает автономно в DEMO; сетевые запросы заблокированы"
+        )
         repository = ClinicRepository(database.dao(), api, settings)
         seeder = DemoSeeder(this, database.dao())
     }

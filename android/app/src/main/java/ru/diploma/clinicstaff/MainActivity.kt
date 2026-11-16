@@ -183,111 +183,154 @@ private fun LoginScreen(loading:Boolean,error:String?,onLogin:(String,String)->U
 }
 
 @Composable
-private fun HomeScreen(s:UiState, onNavigate:(Tab)->Unit) {
-    val today = LocalDate.now()
-    val todayAbsences = s.absences.count { absence ->
-        val from=runCatching{LocalDate.parse(absence.date.take(10))}.getOrNull()
-        val to=runCatching{LocalDate.parse((absence.endDate?:absence.date).take(10))}.getOrNull() ?: from
-        from!=null && to!=null && !today.isBefore(from) && !today.isAfter(to) && absence.status.lowercase()!="rejected"
+private fun HomeScreen(s: UiState, onNavigate: (Tab) -> Unit) {
+    // Главная содержит небольшое фиксированное число карточек. Обычный Column
+    // здесь надёжнее LazyColumn: нет повторного создания/утилизации элементов
+    // при прокрутке и нет необходимости в ленивой композиции.
+    val today = remember { LocalDate.now() }
+    val todayAbsences = remember(s.absences, today) {
+        s.absences.count { absence ->
+            val from = runCatching { LocalDate.parse(absence.date.take(10)) }.getOrNull()
+            val to = runCatching {
+                LocalDate.parse((absence.endDate ?: absence.date).take(10))
+            }.getOrNull() ?: from
+            from != null && to != null && !today.isBefore(from) && !today.isAfter(to) &&
+                absence.status.lowercase(Locale.ROOT) != "rejected"
+        }
     }
-    val unread=s.notifications.count{!it.isRead}
-    val todayShifts=s.schedules.count { item ->
-        val exact=runCatching{item.date?.let{LocalDate.parse(it.take(10))}}.getOrNull()
-        if(exact!=null) exact==today else item.dayOfWeek.normalizedWeekday()==today.dayOfWeek.value
+    val unread = remember(s.notifications) { s.notifications.count { !it.isRead } }
+    val todayShifts = remember(s.schedules, today) {
+        s.schedules.count { item ->
+            val exact = runCatching { item.date?.take(10)?.let { LocalDate.parse(it) } }.getOrNull()
+            if (exact != null) exact == today
+            else item.dayOfWeek.normalizedWeekday() == today.dayOfWeek.value
+        }
     }
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item {
-            Text("Добро пожаловать",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
-            Text(s.profile?.fullName ?: "Демонстрационная учётная запись",style=MaterialTheme.typography.titleMedium)
-            Text(today.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM",Locale("ru","RU"))).replaceFirstChar{it.titlecase(Locale("ru","RU"))},
-                style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    val latestAbsences = remember(s.absences) { s.absences.sortedByDescending { it.date }.take(3) }
+    val upcomingSchedules = remember(s.schedules) { s.schedules.take(4) }
+    val latestNotifications = remember(s.notifications) { s.notifications.take(3) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Добро пожаловать", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(s.profile?.fullName ?: "Демонстрационная учётная запись", style = MaterialTheme.typography.titleMedium)
+            Text(
+                today.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale("ru", "RU")))
+                    .replaceFirstChar { it.titlecase(Locale("ru", "RU")) },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-        item {
-            Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer),modifier=Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Рабочий день",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
-                        Text("Сегодня в расписании $todayShifts смен · отсутствуют $todayAbsences")
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Рабочий день", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Сегодня в расписании $todayShifts смен · отсутствуют $todayAbsences")
+                }
+                Icon(Icons.Default.LocalHospital, null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        SectionTitle("Быстрый доступ")
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onNavigate(Tab.STAFF) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Groups, null); Spacer(Modifier.width(6.dp)); Text("Сотрудники")
+                }
+                OutlinedButton(onClick = { onNavigate(Tab.SCHEDULE) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.CalendarMonth, null); Spacer(Modifier.width(6.dp)); Text("Расписание")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onNavigate(Tab.ACTIVITY) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.DynamicFeed, null); Spacer(Modifier.width(6.dp)); Text("Активность")
+                }
+                OutlinedButton(onClick = { onNavigate(Tab.ALERTS) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Notifications, null); Spacer(Modifier.width(6.dp)); Text("Уведомления")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onNavigate(Tab.TASKS) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.TaskAlt, null); Spacer(Modifier.width(6.dp)); Text("Мои задачи")
+                }
+                OutlinedButton(onClick = { onNavigate(Tab.REQUESTS) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.SupportAgent, null); Spacer(Modifier.width(6.dp)); Text("Заявки")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onNavigate(Tab.DIAGNOSTICS) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.HealthAndSafety, null); Spacer(Modifier.width(6.dp)); Text("Диагностика")
+                }
+                if (s.profile?.type == "admin") {
+                    OutlinedButton(onClick = { onNavigate(Tab.ADMIN) }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.AdminPanelSettings, null); Spacer(Modifier.width(6.dp)); Text("Администрирование")
                     }
-                    Icon(Icons.Default.LocalHospital,null,modifier=Modifier.size(42.dp),tint=MaterialTheme.colorScheme.primary)
+                }
+                OutlinedButton(onClick = { onNavigate(Tab.DEBUG) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.BugReport, null); Spacer(Modifier.width(6.dp)); Text("Отладка")
                 }
             }
         }
-        item { SectionTitle("Быстрый доступ") }
-        item {
-            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick={onNavigate(Tab.STAFF)},modifier=Modifier.weight(1f)) {
-                        Icon(Icons.Default.Groups,null); Spacer(Modifier.width(6.dp)); Text("Сотрудники")
-                    }
-                    OutlinedButton(onClick={onNavigate(Tab.SCHEDULE)},modifier=Modifier.weight(1f)) {
-                        Icon(Icons.Default.CalendarMonth,null); Spacer(Modifier.width(6.dp)); Text("Расписание")
-                    }
-                }
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick={onNavigate(Tab.ACTIVITY)},modifier=Modifier.weight(1f)) {
-                        Icon(Icons.Default.DynamicFeed,null); Spacer(Modifier.width(6.dp)); Text("Активность")
-                    }
-                    OutlinedButton(onClick={onNavigate(Tab.ALERTS)},modifier=Modifier.weight(1f)) {
-                        Icon(Icons.Default.Notifications,null); Spacer(Modifier.width(6.dp)); Text("Уведомления")
-                    }
-                }
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick={onNavigate(Tab.TASKS)},modifier=Modifier.weight(1f)) {
-                        Icon(Icons.Default.TaskAlt,null); Spacer(Modifier.width(6.dp)); Text("Мои задачи")
-                    }
-                    OutlinedButton(onClick={onNavigate(Tab.REQUESTS)},modifier=Modifier.weight(1f)) {
-                        Icon(Icons.Default.SupportAgent,null); Spacer(Modifier.width(6.dp)); Text("Заявки")
-                    }
-                }
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick={onNavigate(Tab.DIAGNOSTICS)},modifier=Modifier.weight(1f)) {
-                        Icon(Icons.Default.HealthAndSafety,null); Spacer(Modifier.width(6.dp)); Text("Диагностика")
-                    }
-                    if (s.profile?.type == "admin") {
-                        OutlinedButton(onClick={onNavigate(Tab.ADMIN)},modifier=Modifier.weight(1f)) {
-                            Icon(Icons.Default.AdminPanelSettings,null); Spacer(Modifier.width(6.dp)); Text("Администрирование")
-                        }
-                    }
-                    OutlinedButton(onClick={onNavigate(Tab.DEBUG)},modifier=Modifier.weight(1f)) {
-                        Icon(Icons.Default.BugReport,null); Spacer(Modifier.width(6.dp)); Text("Отладка")
-                    }
-                }
+
+        SectionTitle("Клиника сегодня")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MetricCard("Сотрудники", s.employees.size.toString(), Modifier.weight(1f))
+            MetricCard("Отделения", s.departments.size.toString(), Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MetricCard("Новые уведомления", unread.toString(), Modifier.weight(1f))
+            MetricCard("Отсутствуют", todayAbsences.toString(), Modifier.weight(1f))
+        }
+
+        SectionTitle("Ближайшие смены")
+        if (upcomingSchedules.isEmpty()) {
+            ListCard("Расписание пока пустое", "После синхронизации здесь появятся смены сотрудников.")
+        } else {
+            upcomingSchedules.forEach { item ->
+                val employee = s.employees.firstOrNull { it.id == item.userId }
+                ListCard(
+                    employee?.let { "${it.lastName} ${it.firstName}" } ?: item.dayOfWeek.ifBlank { "Смена" },
+                    "${item.startTime} — ${item.endTime}${if (item.date != null) " · ${item.date}" else " · ${item.dayOfWeek}"}"
+                )
             }
         }
-        item { SectionTitle("Клиника сегодня") }
-        item {
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                MetricCard("Сотрудники",s.employees.size.toString(),Modifier.weight(1f))
-                MetricCard("Отделения",s.departments.size.toString(),Modifier.weight(1f))
+
+        SectionTitle("Кадровые события")
+        if (latestAbsences.isEmpty()) {
+            ListCard("Нет кадровых событий", "Новые отпуска и больничные будут отображаться здесь.")
+        } else {
+            latestAbsences.forEach { absence ->
+                val employee = s.employees.firstOrNull { it.id == absence.userId }
+                val label = if (absence.type.lowercase(Locale.ROOT) in listOf("sick_leave", "sick")) "Больничный" else "Отпуск"
+                ListCard(
+                    "$label · ${employee?.lastName ?: "Сотрудник"}",
+                    "${absence.date} — ${absence.endDate ?: absence.date} · ${statusLabel(absence.status)}"
+                )
             }
         }
-        item {
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                MetricCard("Новые уведомления",unread.toString(),Modifier.weight(1f))
-                MetricCard("Отсутствуют",todayAbsences.toString(),Modifier.weight(1f))
+
+        SectionTitle("Последние уведомления")
+        if (latestNotifications.isEmpty()) {
+            ListCard("Пока тихо", "Новые уведомления клиники появятся в этом разделе.")
+        } else {
+            latestNotifications.forEach { notification ->
+                ListCard(
+                    notification.title,
+                    (if (notification.isRead) "Прочитано · " else "Новое · ") + notification.message
+                )
             }
         }
-        item { SectionTitle("Ближайшие смены") }
-        if(s.schedules.isEmpty()) item { ListCard("Расписание пока пустое","После синхронизации здесь появятся смены сотрудников.") }
-        items(s.schedules.take(4)) { item ->
-            val employee=s.employees.firstOrNull{it.id==item.userId}
-            ListCard(employee?.let{"${it.lastName} ${it.firstName}"} ?: item.dayOfWeek.ifBlank{"Смена"},
-                "${item.startTime} — ${item.endTime}${if(item.date!=null) " · ${item.date}" else " · ${item.dayOfWeek}"}")
-        }
-        item { SectionTitle("Кадровые события") }
-        val latestAbsences=s.absences.sortedByDescending{it.date}.take(3)
-        if(latestAbsences.isEmpty()) item { ListCard("Нет кадровых событий","Новые отпуска и больничные будут отображаться здесь.") }
-        items(latestAbsences) { absence ->
-            val employee=s.employees.firstOrNull{it.id==absence.userId}
-            val label=if(absence.type.lowercase() in listOf("sick_leave","sick")) "Больничный" else "Отпуск"
-            ListCard("$label · ${employee?.lastName ?: "Сотрудник"}","${absence.date} — ${absence.endDate ?: absence.date} · ${statusLabel(absence.status)}")
-        }
-        item { SectionTitle("Последние уведомления") }
-        if(s.notifications.isEmpty()) item { ListCard("Пока тихо","Новые уведомления клиники появятся в этом разделе.") }
-        items(s.notifications.take(3)) { item ->
-            ListCard(item.title,(if(item.isRead) "Прочитано · " else "Новое · ")+item.message)
-        }
+        Spacer(Modifier.height(8.dp))
     }
 }
 

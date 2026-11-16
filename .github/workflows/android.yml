@@ -13,6 +13,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Необязательно: без переменной собирается автономная DEMO-версия.
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,6 +37,23 @@ jobs:
           test -f android/settings.gradle.kts
           test -f android/app/build.gradle.kts
           test -f android/app/src/main/AndroidManifest.xml
+
+      - name: Validate optional API_BASE_URL
+        shell: bash
+        run: |
+          if [[ -z "${API_BASE_URL}" ]]; then
+            echo "API_BASE_URL is not set; building offline DEMO configuration."
+            exit 0
+          fi
+          if [[ ! "${API_BASE_URL}" =~ ^https://[^[:space:]]+/api/v1/$ ]]; then
+            echo "Invalid API_BASE_URL. Expected https://host/api/v1/ (with trailing slash)." >&2
+            exit 1
+          fi
+          if [[ "${API_BASE_URL}" == *example.com* ]]; then
+            echo "API_BASE_URL still contains the example.com placeholder." >&2
+            exit 1
+          fi
+          echo "API_BASE_URL format is valid."
 
       - name: Compile debug Kotlin and package APK
         run: gradle --no-daemon --stacktrace -p android clean assembleDebug

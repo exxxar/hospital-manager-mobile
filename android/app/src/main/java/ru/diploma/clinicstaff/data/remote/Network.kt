@@ -13,7 +13,23 @@ class TokenHolder {
     @Volatile var token: String? = null
 }
 object Network {
+    /** Проверяет, что адрес API действительно задан, а не оставлен шаблонным. */
+    fun isBaseUrlConfigured(baseUrl: String): Boolean {
+        val value = baseUrl.trim()
+        if (value.isBlank() || value.contains("example.com", ignoreCase = true)) return false
+        return runCatching {
+            val uri = java.net.URI(value)
+            val schemeOk = uri.scheme.equals("https", true) ||
+                (uri.scheme.equals("http", true) && (uri.host == "10.0.2.2" || uri.host == "localhost" || uri.host == "127.0.0.1"))
+            schemeOk && !uri.host.isNullOrBlank() && uri.path.orEmpty().endsWith("/api/v1/") && uri.rawQuery == null && uri.rawFragment == null
+        }.getOrDefault(false)
+    }
+
     fun api(context: Context, baseUrl: String, tokenHolder: TokenHolder): ApiService {
+        // Retrofit требует корректный baseUrl даже в автономном DEMO-режиме.
+        // Этот адрес является заглушкой и никогда не используется для запросов:
+        // все сетевые операции предварительно проверяют apiConfigured.
+        val safeBaseUrl = if (isBaseUrlConfigured(baseUrl)) baseUrl else "https://api-not-configured.invalid/"
         val client = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -36,7 +52,7 @@ object Network {
                 }
             }.build()
         val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
-        return Retrofit.Builder().baseUrl(baseUrl)
+        return Retrofit.Builder().baseUrl(safeBaseUrl)
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build().create(ApiService::class.java)

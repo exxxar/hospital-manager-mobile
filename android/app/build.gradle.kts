@@ -6,6 +6,12 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val configuredApiBaseUrl = providers.gradleProperty("API_BASE_URL")
+    .orElse(providers.environmentVariable("API_BASE_URL"))
+    .orElse("")
+    .get()
+    .trim()
+
 android {
     namespace = "ru.diploma.clinicstaff"
     compileSdk = 35
@@ -15,7 +21,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
-        buildConfigField("String", "API_BASE_URL", "\"https://example.com/api/v1/\"")
+        buildConfigField("String", "API_BASE_URL", "\"${configuredApiBaseUrl}\"")
     }
     buildFeatures { compose = true; buildConfig = true }
     kotlinOptions { jvmTarget = "17" }
