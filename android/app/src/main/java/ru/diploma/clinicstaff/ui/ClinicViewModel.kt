@@ -129,9 +129,9 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
             diagnosticPrefs.edit().putString("last_sync_at", stamp).apply()
             _state.update { it.copy(lastSyncAt=stamp) }
             DebugLogStore.log("INFO","SYNC","Синхронизация завершена")
-        }.onFailure {
-            _state.update { it.copy(error=it.message ?: "Ошибка обновления") }
-            DebugLogStore.log("ERROR","SYNC",it.message ?: "Ошибка синхронизации")
+        }.onFailure { failure ->
+            _state.update { state -> state.copy(error=failure.message ?: "Ошибка обновления") }
+            DebugLogStore.log("ERROR","SYNC",failure.message ?: "Ошибка синхронизации")
         }
         _state.update { it.copy(loading=false) }
     }

@@ -898,6 +898,41 @@ private fun NotificationsScreen(s:UiState,onRead:(String)->Unit) {
 }
 
 @Composable
+private fun ProfileScreen(
+    state: UiState,
+    onSelectDemoEmployee: (Long) -> Unit,
+    onLogout: () -> Unit
+) {
+    val profile = state.profile
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Личный кабинет", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(profile?.fullName ?: "Профиль не выбран", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(profile?.email ?: "Локальная демонстрационная учётная запись")
+                Text("Роль: ${profile?.type?.let(::roleName) ?: "не определена"}")
+                Text("Режим: ${if (state.mode == AppMode.DEMO) "Демо" else "Сервер"}")
+                profile?.phone?.let { Text("Телефон: $it") }
+            }
+        }
+        if (state.mode == AppMode.DEMO) {
+            Text("Демонстрационные профили", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            state.employees.forEach { employee ->
+                OutlinedButton(onClick = { onSelectDemoEmployee(employee.id) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("${employee.firstName} ${employee.lastName} · ${roleName(employee.type)}")
+                }
+            }
+        }
+        if (state.mode == AppMode.SERVER) {
+            OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("Выйти из аккаунта") }
+        }
+    }
+}
+
+@Composable
 private fun ModeDialog(mode:AppMode,onDismiss:()->Unit,onMode:(AppMode)->Unit,onLogout:()->Unit,onReset:()->Unit) {
     AlertDialog(onDismissRequest=onDismiss,
         title={Text("Режим приложения")},

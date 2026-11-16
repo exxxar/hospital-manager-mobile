@@ -13,5 +13,5 @@ class SettingsStore(private val context: Context) {
     val mode = context.settings.data.map { runCatching { AppMode.valueOf(it[modeKey] ?: "DEMO") }.getOrDefault(AppMode.DEMO) }
     val token = context.settings.data.map { it[tokenKey] }
     suspend fun setMode(mode: AppMode) { context.settings.edit { it[modeKey] = mode.name } }
-    suspend fun setToken(token: String?) { context.settings.edit { if (token == null) remove(tokenKey) else it[tokenKey] = token } }
+    suspend fun setToken(token: String?) { context.settings.edit { if (token == null) it -= tokenKey else it[tokenKey] = token } }
 }
