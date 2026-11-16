@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T = ClinicViewModel(app) as T
             })
             MaterialTheme(colorScheme = lightColorScheme(primary = androidx.compose.ui.graphics.Color(0xFF145B55), secondary = androidx.compose.ui.graphics.Color(0xFF477F79))) {
-                ClinicRoot(vm)
+                ClinicRoot(vm, app.apiConfigured)
             }
         }
     }
@@ -57,8 +57,33 @@ private enum class Tab(val title: String, val icon: androidx.compose.ui.graphics
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ClinicRoot(vm: ClinicViewModel) {
+private fun ClinicRoot(vm: ClinicViewModel, apiConfigured: Boolean) {
     val state by vm.state.collectAsState()
+    // Каждый запуск начинается с явного выбора режима. Это исключает
+    // неожиданное открытие SERVER из сохранённых настроек.
+    var entrySelected by remember { mutableStateOf(false) }
+    var showStartupDebug by remember { mutableStateOf(false) }
+
+    if (!entrySelected) {
+        if (showStartupDebug) {
+            Column(Modifier.fillMaxSize()) {
+                TextButton(onClick = { showStartupDebug = false }, modifier = Modifier.padding(8.dp)) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = null)
+                    Spacer(Modifier.width(6.dp)); Text("К выбору режима")
+                }
+                DebugScreen()
+            }
+        } else {
+            ModeSelectionScreen(
+                apiConfigured = apiConfigured,
+                error = state.error,
+                onDemo = { vm.chooseMode(AppMode.DEMO); entrySelected = true },
+                onServer = { if (apiConfigured) { vm.chooseMode(AppMode.SERVER); entrySelected = true } },
+                onDebug = { showStartupDebug = true }
+            )
+        }
+        return
+    }
     var tab by remember { mutableStateOf(Tab.HOME) }
     var selectedEmployee by remember { mutableStateOf<Long?>(null) }
     var showLogin by remember { mutableStateOf(false) }
@@ -157,6 +182,67 @@ private fun ClinicRoot(vm: ClinicViewModel) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ModeSelectionScreen(
+    apiConfigured: Boolean,
+    error: String?,
+    onDemo: () -> Unit,
+    onServer: () -> Unit,
+    onDebug: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState()).padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(painter = painterResource(R.drawable.ic_clinic_logo), contentDescription = "Логотип клиники",
+            modifier = Modifier.size(88.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
+        Spacer(Modifier.height(18.dp))
+        Text("МедПерсонал", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+        Text("Выберите режим работы приложения", style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(30.dp))
+        Card(Modifier.fillMaxWidth(), onClick = onDemo) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.PhoneAndroid, null, modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Демо-режим", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text("Автономная работа с локальными демонстрационными данными", style = MaterialTheme.typography.bodyMedium)
+                }
+                Icon(Icons.Default.ChevronRight, null)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Card(Modifier.fillMaxWidth(), onClick = onServer, enabled = apiConfigured) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Cloud, null, modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Сервер клиники", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(if (apiConfigured) "Подключение к настроенному API" else "Недоступно: API_BASE_URL не задан в GitHub Actions",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Default.ChevronRight, null, tint = if (apiConfigured) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline)
+            }
+        }
+        if (!apiConfigured) {
+            Spacer(Modifier.height(8.dp))
+            Text("Серверный режим отключён. Приложение не будет пытаться подключаться к сети.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
+        error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error) }
+        Spacer(Modifier.height(28.dp))
+        OutlinedButton(onClick = onDebug, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.BugReport, null); Spacer(Modifier.width(8.dp)); Text("Открыть отладчик")
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("Отладчик доступен до выбора режима и не требует подключения к серверу.",
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
