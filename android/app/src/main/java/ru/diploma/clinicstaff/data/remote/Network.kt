@@ -8,6 +8,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
 import java.util.concurrent.TimeUnit
+import java.io.IOException
 
 class TokenHolder {
     @Volatile var token: String? = null
@@ -30,10 +31,17 @@ object Network {
         // Этот адрес является заглушкой и никогда не используется для запросов:
         // все сетевые операции предварительно проверяют apiConfigured.
         val safeBaseUrl = if (isBaseUrlConfigured(baseUrl)) baseUrl else "https://api-not-configured.invalid/"
+        val configured = isBaseUrlConfigured(baseUrl)
         val client = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .addInterceptor { chain ->
+                // Жёсткая защита: ни один вызов Retrofit/OkHttp не уйдёт в сеть,
+                // если API_BASE_URL отсутствует или не прошёл проверку.
+                if (!configured) {
+                    DebugLogStore.log("WARN", "HTTP_BLOCK", "Сетевой запрос заблокирован: API_BASE_URL не настроен")
+                    throw IOException("API_BASE_URL не настроен. Сетевые запросы отключены.")
+                }
                 val request = chain.request().newBuilder().apply {
                     tokenHolder.token?.let { header("Authorization", "Bearer $it") }
                     header("Accept", "application/json")

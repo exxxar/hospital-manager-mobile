@@ -54,15 +54,17 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
         }
         viewModelScope.launch {
             try {
-                val savedMode = app.settings.mode.first()
-            _state.update {
-                it.copy(
-                    mode = savedMode,
-                    error = if (savedMode == AppMode.SERVER && !app.apiConfigured)
-                        "Серверный режим выбран, но API_BASE_URL не настроен. Переключитесь в DEMO или добавьте переменную в GitHub Actions и пересоберите APK."
-                    else it.error
-                )
-            }
+                val storedMode = app.settings.mode.first()
+            // Не допускаем восстановления SERVER из старых настроек, если адрес API
+            // не был передан в сборку GitHub Actions.
+            val savedMode = if (storedMode == AppMode.SERVER && !app.apiConfigured) {
+                app.settings.setMode(AppMode.DEMO)
+                app.settings.setToken(null)
+                app.tokenHolder.token = null
+                DebugLogStore.log("WARN", "CONFIG", "Сохранённый SERVER сброшен в DEMO: API_BASE_URL не настроен")
+                AppMode.DEMO
+            } else storedMode
+            _state.update { it.copy(mode = savedMode, error = null) }
             app.seeder.seedIfNeeded()
             if (savedMode == AppMode.DEMO && _state.value.profile == null) {
                 val demoUser = app.database.dao().employee(1)
@@ -112,14 +114,18 @@ class ClinicViewModel(private val app: ClinicApp) : ViewModel() {
     }
 
     fun chooseMode(mode: AppMode) = viewModelScope.launch {
+        // Сначала проверяем конфигурацию. Нельзя сохранять SERVER при пустом URL.
+        if (mode == AppMode.SERVER && !app.apiConfigured) {
+            val message = "Серверный режим не настроен. Добавьте API_BASE_URL в GitHub Actions и пересоберите APK. Пока доступен DEMO."
+            _state.update { it.copy(mode = AppMode.DEMO, error=message, loading=false) }
+            app.settings.setMode(AppMode.DEMO)
+            DebugLogStore.log("WARN", "CONFIG", "Переход в SERVER заблокирован: API_BASE_URL отсутствует или некорректен")
+            return@launch
+        }
         app.settings.setMode(mode)
         if (mode == AppMode.DEMO) {
             _state.update { it.copy(error=null, loading=false) }
             DebugLogStore.log("INFO", "MODE", "Выбран автономный DEMO-режим")
-        } else if (!app.apiConfigured) {
-            val message = "Серверный режим не настроен. Добавьте переменную API_BASE_URL в GitHub Actions (Settings → Secrets and variables → Actions → Variables), затем пересоберите APK. Пока используйте DEMO."
-            _state.update { it.copy(error=message, loading=false) }
-            DebugLogStore.log("WARN", "CONFIG", "Переход в SERVER заблокирован: API_BASE_URL отсутствует или некорректен")
         } else {
             _state.update { it.copy(error=null) }
             refresh()

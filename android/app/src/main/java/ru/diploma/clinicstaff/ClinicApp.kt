@@ -19,12 +19,16 @@ class ClinicApp : Application() {
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching { DebugLogStore.logException("UNCAUGHT:${thread.name}", throwable) }
+            android.util.Log.e("ClinicCrash", "Необработанное исключение в ${thread.name}", throwable)
             previousHandler?.uncaughtException(thread, throwable)
         }
+        DebugLogStore.log("INFO", "STARTUP", "Инициализация локальной базы данных")
         database = ClinicDatabase.get(this)
+        DebugLogStore.log("INFO", "STARTUP", "Локальная база данных создана")
         settings = SettingsStore(this)
         tokenHolder = TokenHolder()
         api = Network.api(this, BuildConfig.API_BASE_URL, tokenHolder)
+        DebugLogStore.log("INFO", "STARTUP", "Сетевой клиент создан; HTTP защищён проверкой конфигурации")
         DebugLogStore.log(
             if (apiConfigured) "INFO" else "WARN",
             "CONFIG",

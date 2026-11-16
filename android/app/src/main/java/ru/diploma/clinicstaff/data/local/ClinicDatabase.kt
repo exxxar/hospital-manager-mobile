@@ -130,9 +130,32 @@ abstract class ClinicDatabase : RoomDatabase() {
         }
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                fun columns(table: String): Set<String> {
+                    val result = mutableSetOf<String>()
+                    db.query("PRAGMA table_info(`$table`)").use { cursor ->
+                        val nameIndex = cursor.getColumnIndex("name")
+                        while (cursor.moveToNext()) if (nameIndex >= 0) result += cursor.getString(nameIndex)
+                    }
+                    return result
+                }
+                val oldColumns = columns("notifications")
                 db.execSQL("CREATE TABLE IF NOT EXISTS notifications_new (id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, message TEXT NOT NULL, createdAt TEXT, isRead INTEGER NOT NULL)")
-                db.execSQL("INSERT INTO notifications_new (id,title,message,createdAt,isRead) SELECT CAST(id AS TEXT),title,message,createdAt,isRead FROM notifications")
-                db.execSQL("DROP TABLE notifications")
+                if (oldColumns.isNotEmpty() && oldColumns.contains("id")) {
+                    val titleExpr = if (oldColumns.contains("title")) "title" else "''"
+                    val messageExpr = if (oldColumns.contains("message")) "message" else "''"
+                    val dateExpr = when {
+                        oldColumns.contains("createdAt") -> "createdAt"
+                        oldColumns.contains("created_at") -> "created_at"
+                        else -> "NULL"
+                    }
+                    val readExpr = when {
+                        oldColumns.contains("isRead") -> "isRead"
+                        oldColumns.contains("readAt") -> "CASE WHEN readAt IS NULL THEN 0 ELSE 1 END"
+                        else -> "0"
+                    }
+                    db.execSQL("INSERT OR REPLACE INTO notifications_new (id,title,message,createdAt,isRead) SELECT CAST(id AS TEXT),$titleExpr,$messageExpr,$dateExpr,$readExpr FROM notifications")
+                    db.execSQL("DROP TABLE notifications")
+                }
                 db.execSQL("ALTER TABLE notifications_new RENAME TO notifications")
             }
         }
