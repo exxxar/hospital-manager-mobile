@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,6 +61,7 @@ private fun ClinicRoot(vm: ClinicViewModel) {
     var tab by remember { mutableStateOf(Tab.HOME) }
     var selectedEmployee by remember { mutableStateOf<Long?>(null) }
     var showLogin by remember { mutableStateOf(false) }
+    var showMore by remember { mutableStateOf(false) }
 
     if (state.mode == AppMode.SERVER && !state.loggedIn) {
         LoginScreen(state.loading,state.error, onLogin=vm::login, onBack={ vm.chooseMode(AppMode.DEMO) })
@@ -67,9 +70,12 @@ private fun ClinicRoot(vm: ClinicViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Column {
-                    Text("Клиника", fontWeight=FontWeight.Bold)
-                    Text(if (state.mode == AppMode.DEMO) "ДЕМО-режим · локальные данные" else "Подключение к серверу", style=MaterialTheme.typography.labelSmall)
+                title = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(painter = painterResource(R.drawable.ic_clinic_logo), contentDescription = "Логотип клиники", modifier = Modifier.size(36.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
+                    Column {
+                        Text("МедПерсонал", fontWeight=FontWeight.Bold)
+                        Text(if (state.mode == AppMode.DEMO) "ДЕМО-режим · локальные данные" else "Подключение к серверу", style=MaterialTheme.typography.labelSmall)
+                    }
                 } },
                 actions = {
                     IconButton(onClick = vm::refresh) { Icon(Icons.Default.Refresh, contentDescription="Обновить") }
@@ -82,10 +88,17 @@ private fun ClinicRoot(vm: ClinicViewModel) {
         },
         bottomBar = {
             NavigationBar {
-                Tab.values().filter { it != Tab.ADMIN || state.profile?.type == "admin" }.forEach { item ->
+                val primaryTabs = listOf(Tab.HOME, Tab.STAFF, Tab.SCHEDULE)
+                primaryTabs.forEach { item ->
                     NavigationBarItem(selected=tab==item, onClick={tab=item;selectedEmployee=null},
-                        icon={Icon(item.icon,contentDescription=item.title)}, label={Text(item.title)})
+                        icon={Icon(item.icon,contentDescription=item.title)}, label={Text(item.title, maxLines=1)})
                 }
+                NavigationBarItem(
+                    selected = tab !in primaryTabs && tab != Tab.PROFILE,
+                    onClick = { showMore = true; selectedEmployee = null },
+                    icon = { Icon(Icons.Default.Menu, contentDescription = "Ещё") },
+                    label = { Text("Ещё") }
+                )
             }
         }
     ) { padding ->
@@ -119,6 +132,29 @@ private fun ClinicRoot(vm: ClinicViewModel) {
         ModeDialog(state.mode, onDismiss={showLogin=false}, onMode={ vm.chooseMode(it); showLogin=false },
             onLogout={vm.logout();showLogin=false}, onReset={vm.resetDemo();showLogin=false})
     }
+    if (showMore) {
+        val extraTabs = buildList {
+            addAll(listOf(Tab.DEPARTMENTS, Tab.ALERTS, Tab.ACTIVITY, Tab.TASKS, Tab.REQUESTS))
+            if (state.profile?.type == "admin") add(Tab.ADMIN)
+            addAll(listOf(Tab.DIAGNOSTICS, Tab.DEBUG))
+        }
+        ModalBottomSheet(onDismissRequest = { showMore = false }) {
+            Text("Разделы приложения", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            LazyColumn(contentPadding = PaddingValues(bottom = 28.dp)) {
+                items(extraTabs) { item ->
+                    ListItem(
+                        headlineContent = { Text(item.title) },
+                        leadingContent = { Icon(item.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        trailingContent = { if (tab == item) Icon(Icons.Default.Check, contentDescription = "Выбран") },
+                        modifier = Modifier.fillMaxWidth().clickable { tab = item; selectedEmployee = null; showMore = false },
+                        colors = ListItemDefaults.colors(containerColor = if (tab == item) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -127,7 +163,7 @@ private fun LoginScreen(loading:Boolean,error:String?,onLogin:(String,String)->U
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.Center) {
-        Icon(Icons.Default.LocalHospital,null,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(56.dp))
+        Icon(painter = painterResource(R.drawable.ic_clinic_logo), contentDescription = "Логотип клиники", modifier = Modifier.size(76.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
         Spacer(Modifier.height(16.dp))
         Text("Вход для сотрудников",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)
         Text("Используйте учётную запись медицинской клиники.")

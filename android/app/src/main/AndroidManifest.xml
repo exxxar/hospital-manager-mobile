@@ -3,6 +3,8 @@
     <application
         android:name=".ClinicApp"
         android:allowBackup="false"
+        android:icon="@drawable/ic_clinic_logo"
+        android:roundIcon="@drawable/ic_clinic_logo"
         android:label="Клиника — сотрудники"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
